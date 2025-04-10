@@ -1,0 +1,18 @@
+{
+  "api_token": "DEIN-HETZNER-API-TOKEN-HIER",
+  "records": [
+    "server1.domain.de",
+    "server2.domain.de",
+    "andere.domain.de"
+  ],
+  "ttl": 60,
+  "smtp": {
+    "server": "smtp.example.com",
+    "port": "587",
+    "user": "user@example.com",
+    "password": "deinpasswort",
+    "recipient": "empfaenger@example.com"
+  },
+  "logfile": "/var/log/hetzner_dns_update.log"
+}
+  
