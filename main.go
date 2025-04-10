@@ -77,9 +77,7 @@ func main() {
 		logAndMail("Fehler beim Ermitteln der IPv4: " + err.Error())
 		os.Exit(1)
 	}
-	if *verboseMode {
-		log.Println("Aktuelle öffentliche IPv4:", ipv4)
-	}
+	log.Println("Aktuelle öffentliche IPv4:", ipv4)
 
 	for _, fullDomain := range config.Records {
 		if *verboseMode {

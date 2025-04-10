@@ -2,7 +2,7 @@
 
 BINARY=hetzner_dns_update
 
-build:
+build: main.go
 	go build -o $(BINARY) main.go
 
 install:
