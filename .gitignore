@@ -9,6 +9,9 @@
 *.dylib
 hetzner_dns_update
 
+# Production config file (just in case)
+config.json
+
 # Test binary, built with `go test -c`
 *.test
 

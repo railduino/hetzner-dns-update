@@ -54,7 +54,7 @@ const hetznerAPI = "https://dns.hetzner.com/api/v1"
 var config Config
 
 func main() {
-	checkMode := flag.Bool("check", false, "Nur Health-Check ausführen")
+	updateMode := flag.Bool("update", false, "A-Record wirklich aktualisieren")
 	flag.Parse()
 
 	err := loadConfig("config.json")
@@ -71,11 +71,6 @@ func main() {
 	defer logFile.Close()
 	log.SetOutput(logFile)
 
-	if *checkMode {
-		healthCheck()
-		return
-	}
-
 	ipv4, err := getPublicIP()
 	if err != nil {
 		logAndMail("Fehler beim Ermitteln der IPv4: " + err.Error())
@@ -91,7 +86,8 @@ func main() {
 			continue
 		}
 
-		record, err := findARecord(zoneID, fullDomain)
+		parts := strings.Split(fullDomain, ".")
+		record, err := findARecord(zoneID, parts[0])
 		if err != nil {
 			logAndMail("Record Fehler: " + err.Error())
 			continue
@@ -102,11 +98,13 @@ func main() {
 			continue
 		}
 
-		err = updateRecord(record.ID, ipv4)
-		if err != nil {
-			logAndMail("Update Fehler: " + err.Error())
-		} else {
-			logAndMail("Erfolgreich aktualisiert: " + fullDomain)
+		if *updateMode {
+			err = updateRecord(record.ID, ipv4)
+			if err != nil {
+				logAndMail("Update Fehler: " + err.Error())
+			} else {
+				logAndMail("Erfolgreich aktualisiert: " + fullDomain)
+			}
 		}
 	}
 }
@@ -216,32 +214,4 @@ func sendEmail(subject, body string) {
 	if err != nil {
 		log.Println("Fehler beim Senden der E-Mail:", err)
 	}
-}
-
-func healthCheck() {
-	log.Println("Starte Health-Check...")
-
-	_, err := getPublicIP()
-	if err != nil {
-		logAndMail("Health-Check Fehler: IP nicht ermittelbar: " + err.Error())
-		os.Exit(1)
-	}
-
-	err = smtpSendTestMail()
-	if err != nil {
-		logAndMail("Health-Check Fehler: SMTP nicht erreichbar: " + err.Error())
-		os.Exit(1)
-	}
-
-	logAndMail("Health-Check erfolgreich: IP und SMTP erreichbar.")
-	os.Exit(0)
-}
-
-func smtpSendTestMail() error {
-	auth := smtp.PlainAuth("", config.SMTP.User, config.SMTP.Password, config.SMTP.Server)
-	msg := []byte("To: " + config.SMTP.Recipient + "\r\n" +
-		"Subject: Health-Check DNS-Update\r\n" +
-		"\r\n" +
-		"Health-Check erfolgreich.")
-	return smtp.SendMail(config.SMTP.Server+":"+config.SMTP.Port, auth, config.SMTP.User, []string{config.SMTP.Recipient}, msg)
 }
