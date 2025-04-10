@@ -55,6 +55,7 @@ var config Config
 
 func main() {
 	updateMode := flag.Bool("update", false, "A-Record wirklich aktualisieren")
+	verboseMode := flag.Bool("verbose", false, "melde auch wenn A-Record aktuell")
 	flag.Parse()
 
 	err := loadConfig("config.json")
@@ -76,10 +77,14 @@ func main() {
 		logAndMail("Fehler beim Ermitteln der IPv4: " + err.Error())
 		os.Exit(1)
 	}
-	log.Println("Aktuelle öffentliche IPv4:", ipv4)
+	if *verboseMode {
+		log.Println("Aktuelle öffentliche IPv4:", ipv4)
+	}
 
 	for _, fullDomain := range config.Records {
-		log.Println("Bearbeite Record:", fullDomain)
+		if *verboseMode {
+			log.Println("Bearbeite Record:", fullDomain)
+		}
 		zoneID, err := findZoneID(fullDomain)
 		if err != nil {
 			logAndMail("Zone-ID Fehler: " + err.Error())
@@ -94,7 +99,9 @@ func main() {
 		}
 
 		if record.Value == ipv4 {
-			log.Println("Keine Aktualisierung nötig für", fullDomain)
+			if *verboseMode {
+				log.Println("Keine Aktualisierung nötig für", fullDomain)
+			}
 			continue
 		}
 
