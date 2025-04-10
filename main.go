@@ -99,7 +99,7 @@ func main() {
 		}
 
 		if *updateMode {
-			err = updateRecord(zoneID, record.ID, parts[0], ipv4)
+			err = updateRecord(zoneID, record.ID, record.Name, ipv4)
 			if err != nil {
 				logAndMail("Update Fehler: " + err.Error())
 			} else {
