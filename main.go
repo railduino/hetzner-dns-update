@@ -99,7 +99,7 @@ func main() {
 		}
 
 		if *updateMode {
-			err = updateRecord(record.ID, ipv4)
+			err = updateRecord(zoneID, record.ID, parts[0], ipv4)
 			if err != nil {
 				logAndMail("Update Fehler: " + err.Error())
 			} else {
@@ -177,12 +177,14 @@ func findARecord(zoneID, fullDomain string) (Record, error) {
 	return Record{}, fmt.Errorf("A-Record nicht gefunden für %s", fullDomain)
 }
 
-func updateRecord(recordID, newIP string) error {
+func updateRecord(zoneID, recordID, name, newIP string) error {
 	client := &http.Client{}
 	payload := map[string]interface{}{
-		"type":  "A",
-		"value": newIP,
-		"ttl":   config.TTL,
+		"name":    name,
+		"type":    "A",
+		"value":   newIP,
+		"ttl":     config.TTL,
+		"zone_id": zoneID,
 	}
 	body, _ := json.Marshal(payload)
 	req, _ := http.NewRequest("PUT", fmt.Sprintf("%s/records/%s", hetznerAPI, recordID), bytes.NewBuffer(body))
