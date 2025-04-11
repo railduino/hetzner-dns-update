@@ -213,7 +213,8 @@ func logAndMail(message string) {
 
 func sendEmail(subject, body string) {
 	auth := smtp.PlainAuth("", config.SMTP.User, config.SMTP.Password, config.SMTP.Server)
-	msg := []byte("To: " + config.SMTP.Recipient + "\r\n" +
+	msg := []byte("From: " + config.SMTP.User + "\r\n" +
+		"To: " + config.SMTP.Recipient + "\r\n" +
 		"Subject: " + subject + "\r\n" +
 		"\r\n" +
 		body + "\r\n")
