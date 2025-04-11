@@ -5,6 +5,12 @@ BINARY=hetzner_dns_update
 build: main.go
 	go build -o $(BINARY) main.go
 
+run: build
+	sudo ./$(BINARY) --verbose
+
+update: build
+	sudo ./$(BINARY) --verbose --update
+
 install:
 	sudo install $(BINARY) /usr/local/bin/$(BINARY)
 

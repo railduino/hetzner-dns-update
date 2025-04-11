@@ -54,8 +54,8 @@ const hetznerAPI = "https://dns.hetzner.com/api/v1"
 var config Config
 
 func main() {
-	updateMode := flag.Bool("update", false, "A-Record wirklich aktualisieren")
-	verboseMode := flag.Bool("verbose", false, "melde auch wenn A-Record aktuell")
+	updateMode := flag.Bool("update", false, "A/AAAA Record wirklich aktualisieren")
+	verboseMode := flag.Bool("verbose", false, "melde auch wenn Record aktuell")
 	flag.Parse()
 
 	err := loadConfig("config.json")
@@ -72,16 +72,16 @@ func main() {
 	defer logFile.Close()
 	log.SetOutput(logFile)
 
-	ipv4, err := getPublicIP()
+	ipv4, ipv6, err := getPublicIPs()
 	if err != nil {
-		logAndMail("Fehler beim Ermitteln der IPv4: " + err.Error())
+		logAndMail("Fehler beim Ermitteln der IP: " + err.Error())
 		os.Exit(1)
 	}
-	log.Println("Aktuelle öffentliche IPv4:", ipv4)
+	log.Printf("Aktuelle öffentliche IPs: '%s' / '%s'\n", ipv4, ipv6)
 
 	for _, fullDomain := range config.Records {
 		if *verboseMode {
-			log.Println("Bearbeite Record:", fullDomain)
+			fmt.Println("Bearbeite Record:", fullDomain)
 		}
 		zoneID, err := findZoneID(fullDomain)
 		if err != nil {
@@ -90,25 +90,45 @@ func main() {
 		}
 
 		parts := strings.Split(fullDomain, ".")
-		record, err := findARecord(zoneID, parts[0])
+		recordA, recordAAAA, err := findRecords(zoneID, parts[0])
 		if err != nil {
 			logAndMail("Record Fehler: " + err.Error())
 			continue
 		}
 
-		if record.Value == ipv4 {
+		if recordA.Value == ipv4 {
 			if *verboseMode {
-				log.Println("Keine Aktualisierung nötig für", fullDomain)
+				fmt.Println("Keine Aktualisierung IPv4 nötig für", fullDomain)
 			}
-			continue
+		} else {
+			if *verboseMode {
+				fmt.Println("Aktualisierung IPv4 ist nötig für", fullDomain)
+			}
+			if *updateMode {
+				err = updateRecord(zoneID, recordA.ID, recordA.Name, ipv4)
+				if err != nil {
+					logAndMail("Update Fehler IPv4: " + err.Error())
+				} else {
+					logAndMail("Erfolgreich aktualisiert IPv4: " + fullDomain)
+				}
+			}
 		}
 
-		if *updateMode {
-			err = updateRecord(zoneID, record.ID, record.Name, ipv4)
-			if err != nil {
-				logAndMail("Update Fehler: " + err.Error())
-			} else {
-				logAndMail("Erfolgreich aktualisiert: " + fullDomain)
+		if ipv6 != "" && recordAAAA.Value == ipv6 {
+			if *verboseMode {
+				fmt.Println("Keine Aktualisierung IPv6 nötig für", fullDomain)
+			}
+		} else {
+			if *verboseMode {
+				fmt.Println("Aktualisierung IPv6 ist nötig für", fullDomain)
+			}
+			if *updateMode {
+				err = updateRecord(zoneID, recordAAAA.ID, recordAAAA.Name, ipv6)
+				if err != nil {
+					logAndMail("Update Fehler IPv6: " + err.Error())
+				} else {
+					logAndMail("Erfolgreich aktualisiert IPv6: " + fullDomain)
+				}
 			}
 		}
 	}
@@ -122,14 +142,28 @@ func loadConfig(filename string) error {
 	return json.Unmarshal(data, &config)
 }
 
-func getPublicIP() (string, error) {
-	resp, err := http.Get("https://api.ipify.org")
+func getPublicIPs() (string, string, error) {
+	resp4, err := http.Get("https://api.ipify.org")
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
-	defer resp.Body.Close()
-	ip, err := io.ReadAll(resp.Body)
-	return string(ip), err
+	defer resp4.Body.Close()
+	ip4, err := io.ReadAll(resp4.Body)
+	if err != nil {
+		return "", "", err
+	}
+
+	resp6, err := http.Get("https://api6.ipify.org")
+	if err != nil {
+		return string(ip4), "", nil
+	}
+	defer resp6.Body.Close()
+	ip6, err := io.ReadAll(resp6.Body)
+	if err != nil {
+		return "", "", err
+	}
+
+	return string(ip4), string(ip6), nil
 }
 
 func findZoneID(domain string) (string, error) {
@@ -160,13 +194,16 @@ func findZoneID(domain string) (string, error) {
 	return "", fmt.Errorf("Zone nicht gefunden für Domain: %s", domain)
 }
 
-func findARecord(zoneID, fullDomain string) (Record, error) {
+func findRecords(zoneID, fullDomain string) (Record, Record, error) {
+	recordA := Record{}
+	recordAAAA := Record{}
+
 	client := &http.Client{}
 	req, _ := http.NewRequest("GET", fmt.Sprintf("%s/records?zone_id=%s", hetznerAPI, zoneID), nil)
 	req.Header.Add("Auth-API-Token", config.APIToken)
 	resp, err := client.Do(req)
 	if err != nil {
-		return Record{}, err
+		return recordA, recordAAAA, err
 	}
 	defer resp.Body.Close()
 
@@ -176,10 +213,19 @@ func findARecord(zoneID, fullDomain string) (Record, error) {
 
 	for _, rec := range records.Records {
 		if rec.Name == fullDomain && rec.Type == "A" {
-			return rec, nil
+			recordA = rec
+			continue
+		}
+		if rec.Name == fullDomain && rec.Type == "AAAA" {
+			recordAAAA = rec
+			continue
 		}
 	}
-	return Record{}, fmt.Errorf("A-Record nicht gefunden für %s", fullDomain)
+
+	if recordA.Type == "" && recordAAAA.Type == "" {
+		return recordA, recordAAAA, fmt.Errorf("weder A-Record noch AAAA-Record gefunden für %s", fullDomain)
+	}
+	return recordA, recordAAAA, nil
 }
 
 func updateRecord(zoneID, recordID, name, newIP string) error {
