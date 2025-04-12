@@ -3,6 +3,8 @@
 BINARY=hetzner_dns_update
 
 build: main.go
+	go mod tidy
+	go fmt
 	go build -o $(BINARY) main.go
 
 run: build

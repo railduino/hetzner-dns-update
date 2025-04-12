@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/smtp"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -54,19 +55,19 @@ const hetznerAPI = "https://dns.hetzner.com/api/v1"
 var config Config
 
 func main() {
-	updateMode := flag.Bool("update", false, "A/AAAA Record wirklich aktualisieren")
-	verboseMode := flag.Bool("verbose", false, "melde auch wenn Record aktuell")
+	updateMode := flag.Bool("update", false, "update A/AAAA records")
+	verboseMode := flag.Bool("verbose", false, "show progress")
 	flag.Parse()
 
 	err := loadConfig("config.json")
 	if err != nil {
-		fmt.Println("Fehler beim Laden der Konfiguration:", err)
+		fmt.Println("error loading config file:", err)
 		os.Exit(1)
 	}
 
 	logFile, err := os.OpenFile(config.Logfile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		fmt.Println("Fehler beim Öffnen der Logdatei:", err)
+		fmt.Println("error opening log file:", err)
 		os.Exit(1)
 	}
 	defer logFile.Close()
@@ -74,60 +75,60 @@ func main() {
 
 	ipv4, ipv6, err := getPublicIPs()
 	if err != nil {
-		logAndMail("Fehler beim Ermitteln der IP: " + err.Error())
+		logAndMail("error getting current public IP: " + err.Error())
 		os.Exit(1)
 	}
-	log.Printf("Aktuelle öffentliche IPs: '%s' / '%s'\n", ipv4, ipv6)
+	log.Printf("Current public IP: '%s' / '%s'\n", ipv4, ipv6)
 
 	for _, fullDomain := range config.Records {
 		if *verboseMode {
-			fmt.Println("Bearbeite Record:", fullDomain)
+			fmt.Println("processing record:", fullDomain)
 		}
 		zoneID, err := findZoneID(fullDomain)
 		if err != nil {
-			logAndMail("Zone-ID Fehler: " + err.Error())
+			logAndMail("error fetching zone ID: " + err.Error())
 			continue
 		}
 
 		parts := strings.Split(fullDomain, ".")
 		recordA, recordAAAA, err := findRecords(zoneID, parts[0])
 		if err != nil {
-			logAndMail("Record Fehler: " + err.Error())
+			logAndMail("error fetching A/AAAA records: " + err.Error())
 			continue
 		}
 
 		if recordA.Value == ipv4 {
 			if *verboseMode {
-				fmt.Println("Keine Aktualisierung IPv4 nötig für", fullDomain)
+				fmt.Println("A record is current for:", fullDomain)
 			}
 		} else {
 			if *verboseMode {
-				fmt.Println("Aktualisierung IPv4 ist nötig für", fullDomain)
+				fmt.Println("A record needs update for:", fullDomain)
 			}
 			if *updateMode {
 				err = updateRecord(zoneID, recordA.ID, recordA.Name, ipv4)
 				if err != nil {
-					logAndMail("Update Fehler IPv4: " + err.Error())
+					logAndMail("error updating A record: " + err.Error())
 				} else {
-					logAndMail("Erfolgreich aktualisiert IPv4: " + fullDomain)
+					logAndMail("A record was updated: " + fullDomain)
 				}
 			}
 		}
 
 		if ipv6 != "" && recordAAAA.Value == ipv6 {
 			if *verboseMode {
-				fmt.Println("Keine Aktualisierung IPv6 nötig für", fullDomain)
+				fmt.Println("AAAA record is current for:", fullDomain)
 			}
 		} else {
 			if *verboseMode {
-				fmt.Println("Aktualisierung IPv6 ist nötig für", fullDomain)
+				fmt.Println("AAAA record needs update for:", fullDomain)
 			}
 			if *updateMode {
 				err = updateRecord(zoneID, recordAAAA.ID, recordAAAA.Name, ipv6)
 				if err != nil {
-					logAndMail("Update Fehler IPv6: " + err.Error())
+					logAndMail("error updating AAAA record: " + err.Error())
 				} else {
-					logAndMail("Erfolgreich aktualisiert IPv6: " + fullDomain)
+					logAndMail("AAAA record was updated: " + fullDomain)
 				}
 			}
 		}
@@ -135,10 +136,19 @@ func main() {
 }
 
 func loadConfig(filename string) error {
-	data, err := os.ReadFile(filename)
+	config_dir, _ := os.Getwd()
+	if snap_dir := os.Getenv("SNAP_USER_COMMON"); snap_dir != "" {
+		config_dir = snap_dir
+	} else if env_dir := os.Getenv("CONFIG_DIR"); env_dir != "" {
+		config_dir = env_dir
+	}
+
+	config_file := filepath.Join(config_dir, filename)
+	data, err := os.ReadFile(config_file)
 	if err != nil {
 		return err
 	}
+
 	return json.Unmarshal(data, &config)
 }
 
@@ -182,7 +192,7 @@ func findZoneID(domain string) (string, error) {
 
 	parts := strings.Split(domain, ".")
 	if len(parts) < 2 {
-		return "", fmt.Errorf("ungültiger Domainname: %s", domain)
+		return "", fmt.Errorf("invalid domain name: %s", domain)
 	}
 	baseDomain := parts[len(parts)-2] + "." + parts[len(parts)-1]
 
@@ -191,7 +201,7 @@ func findZoneID(domain string) (string, error) {
 			return zone.ID, nil
 		}
 	}
-	return "", fmt.Errorf("Zone nicht gefunden für Domain: %s", domain)
+	return "", fmt.Errorf("can't find domain '%s'", domain)
 }
 
 func findRecords(zoneID, fullDomain string) (Record, Record, error) {
@@ -223,7 +233,7 @@ func findRecords(zoneID, fullDomain string) (Record, Record, error) {
 	}
 
 	if recordA.Type == "" && recordAAAA.Type == "" {
-		return recordA, recordAAAA, fmt.Errorf("weder A-Record noch AAAA-Record gefunden für %s", fullDomain)
+		return recordA, recordAAAA, fmt.Errorf("can't find A record for '%s'", fullDomain)
 	}
 	return recordA, recordAAAA, nil
 }
@@ -247,7 +257,7 @@ func updateRecord(zoneID, recordID, name, newIP string) error {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
-		return fmt.Errorf("Fehler beim Aktualisieren, Status: %s", resp.Status)
+		return fmt.Errorf("update status: %s", resp.Status)
 	}
 	return nil
 }
@@ -266,6 +276,6 @@ func sendEmail(subject, body string) {
 		body + "\r\n")
 	err := smtp.SendMail(config.SMTP.Server+":"+config.SMTP.Port, auth, config.SMTP.User, []string{config.SMTP.Recipient}, msg)
 	if err != nil {
-		log.Println("Fehler beim Senden der E-Mail:", err)
+		log.Println("eror sending email:", err)
 	}
 }
