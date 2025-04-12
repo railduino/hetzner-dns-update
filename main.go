@@ -123,7 +123,7 @@ func main() {
 			if *verboseMode {
 				fmt.Println("AAAA record is current for:", fullDomain)
 			}
-		} else {
+		} else if recordAAAA.Value != "" {
 			if *verboseMode {
 				fmt.Println("AAAA record needs update for:", fullDomain)
 			}
