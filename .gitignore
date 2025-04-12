@@ -7,10 +7,13 @@
 *.dll
 *.so
 *.dylib
-hetzner_dns_update
+hetzner-dns-update
+
+# Local log files
+hetzner-dns-update.log
 
 # Production config file (just in case)
-config.json
+config.*
 
 # Test binary, built with `go test -c`
 *.test

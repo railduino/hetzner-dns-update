@@ -65,13 +65,17 @@ func main() {
 		os.Exit(1)
 	}
 
-	logFile, err := os.OpenFile(config.Logfile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	log_name := "hetzner_dns_update.log"
+	if os.Geteuid() == 0 {
+		log_name = config.Logfile
+	}
+	log_file, err := os.OpenFile(log_name, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		fmt.Println("error opening log file:", err)
 		os.Exit(1)
 	}
-	defer logFile.Close()
-	log.SetOutput(logFile)
+	defer log_file.Close()
+	log.SetOutput(log_file)
 
 	ipv4, ipv6, err := getPublicIPs()
 	if err != nil {

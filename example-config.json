@@ -13,6 +13,6 @@
     "password": "deinpasswort",
     "recipient": "empfaenger@example.com"
   },
-  "logfile": "/var/log/hetzner_dns_update.log"
+  "logfile": "/var/log/hetzner-dns-update.log"
 }
   

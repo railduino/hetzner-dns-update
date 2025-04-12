@@ -1,4 +1,4 @@
 # Update the DNS records for local servers
 
-* * * * * root cd /etc/hetzner_dns_update && /usr/local/bin/hetzner_dns_update --update
+* * * * * root cd /etc/hetzner-dns-update && /usr/local/bin/hetzner-dns-update --update
 

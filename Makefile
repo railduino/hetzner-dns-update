@@ -1,20 +1,20 @@
 # Makefile für DNS-Update Programm
 
-BINARY=hetzner_dns_update
+all: hetzner-dns-update
 
-build: main.go
+hetzner-dns-update: *.go
 	go mod tidy
 	go fmt
-	go build -o $(BINARY) main.go
+	go build -o hetzner-dns-update
 
-run: build
-	sudo ./$(BINARY) --verbose
+check: hetzner-dns-update
+	./hetzner-dns-update --verbose
 
-update: build
-	sudo ./$(BINARY) --verbose --update
+update: hetzner-dns-update
+	./hetzner-dns-update --verbose --update
 
 install:
-	sudo install $(BINARY) /usr/local/bin/$(BINARY)
+	sudo install hetzner-dns-update /usr/local/bin/hetzner-dns-update
 
 clean:
-	rm -f $(BINARY)
+	rm -f hetzner-dns-update hetzner-dns-update.log

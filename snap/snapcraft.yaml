@@ -1,0 +1,24 @@
+name: hetzner-dns-update
+base: core22
+version: '1.2'
+summary: CLI tool to update Hetzner DNS records
+description: |
+  A simple CLI utility to automatically update A or AAAA DNS records
+  using the Hetzner DNS API. Configuration is automatically loaded
+  from the SNAP_USER_COMMON directory, CONFIG_DIR environment variable,
+  or the current working directory.
+
+grade: stable
+confinement: strict
+
+apps:
+  hetzner-dns-update:
+    command: bin/hetzner-dns-update
+
+parts:
+  hetzner-dns-update:
+    plugin: go
+    source: .
+    build-snaps:
+      - go
+
