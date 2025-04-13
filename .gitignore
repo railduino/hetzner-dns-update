@@ -10,7 +10,7 @@
 hetzner-dns-update
 
 # Local log files
-hetzner-dns-update.log
+*.log
 
 # Production config file (just in case)
 config.*

@@ -65,7 +65,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	log_name := "hetzner_dns_update.log"
+	log_name := "hetzner-dns-update.log"
 	if os.Geteuid() == 0 {
 		log_name = config.Logfile
 	}
