@@ -88,19 +88,29 @@ func main() {
 		if *verboseMode {
 			fmt.Println("processing record:", fullDomain)
 		}
-		zoneID, err := findZoneID(fullDomain)
+		parts := strings.SplitN(fullDomain, ".", 2)
+		if len(parts) != 2 {
+			logAndMail("invalid domain name: " + fullDomain)
+			continue
+		}
+		namePart := parts[0]
+		zonePart := parts[1]
+
+		zoneID, err := findZoneID(zonePart)
 		if err != nil {
 			logAndMail("error fetching zone ID: " + err.Error())
 			continue
 		}
 
-		parts := strings.Split(fullDomain, ".")
-		recordA, recordAAAA, err := findRecords(zoneID, parts[0])
+		recordA, recordAAAA, err := findRecords(zoneID, namePart)
 		if err != nil {
 			logAndMail("error fetching A/AAAA records: " + err.Error())
 			continue
 		}
 
+		//
+		// Handle IPv4
+		//
 		if recordA.Value == ipv4 {
 			if *verboseMode {
 				fmt.Println("A record is current for:", fullDomain)
@@ -110,7 +120,7 @@ func main() {
 				fmt.Println("A record needs update for:", fullDomain)
 			}
 			if *updateMode {
-				err = updateRecord(zoneID, recordA.ID, recordA.Name, ipv4)
+				err = updateRecord(zoneID, recordA.ID, "A", namePart, ipv4)
 				if err != nil {
 					logAndMail("error updating A record: " + err.Error())
 				} else {
@@ -119,20 +129,61 @@ func main() {
 			}
 		}
 
-		if ipv6 != "" && recordAAAA.Value == ipv6 {
-			if *verboseMode {
-				fmt.Println("AAAA record is current for:", fullDomain)
-			}
-		} else if recordAAAA.Value != "" {
-			if *verboseMode {
-				fmt.Println("AAAA record needs update for:", fullDomain)
-			}
-			if *updateMode {
-				err = updateRecord(zoneID, recordAAAA.ID, recordAAAA.Name, ipv6)
-				if err != nil {
-					logAndMail("error updating AAAA record: " + err.Error())
+		//
+		// Handle IPv6
+		//
+		if ipv6 != "" {
+			if recordAAAA.Value != "" {
+				// Case: cur+ / rec+
+				if recordAAAA.Value == ipv6 {
+					if *verboseMode {
+						fmt.Println("AAAA record is current for:", fullDomain)
+					}
 				} else {
-					logAndMail("AAAA record was updated: " + fullDomain)
+					if *verboseMode {
+						fmt.Println("AAAA record needs update for:", fullDomain)
+					}
+					if *updateMode {
+						err = updateRecord(zoneID, recordAAAA.ID, "AAAA", namePart, ipv6)
+						if err != nil {
+							logAndMail("error updating AAAA record: " + err.Error())
+						} else {
+							logAndMail("AAAA record was updated: " + fullDomain)
+						}
+					}
+				}
+			} else {
+				// Case: cur+ / rec-
+				if *verboseMode {
+					fmt.Println("AAAA record needs create for:", fullDomain)
+				}
+				if *updateMode {
+					err = createRecord(zoneID, "AAAA", namePart, ipv6)
+					if err != nil {
+						logAndMail("error creating AAAA record: " + err.Error())
+					} else {
+						logAndMail("AAAA record was created: " + fullDomain)
+					}
+				}
+			}
+		} else {
+			if recordAAAA.Value != "" {
+				// Case: cur- / rec+
+				if *verboseMode {
+					fmt.Println("AAAA record needs delete for:", fullDomain)
+				}
+				if *updateMode {
+					err = deleteRecord(recordAAAA.ID)
+					if err != nil {
+						logAndMail("error deleting AAAA record: " + err.Error())
+					} else {
+						logAndMail("AAAA record was deleted: " + fullDomain)
+					}
+				}
+			} else {
+				// Case: cur- / rec-
+				if *verboseMode {
+					fmt.Println("no need for AAAA record for:", fullDomain)
 				}
 			}
 		}
@@ -194,14 +245,8 @@ func findZoneID(domain string) (string, error) {
 	decoder := json.NewDecoder(resp.Body)
 	decoder.Decode(&zones)
 
-	parts := strings.Split(domain, ".")
-	if len(parts) < 2 {
-		return "", fmt.Errorf("invalid domain name: %s", domain)
-	}
-	baseDomain := parts[len(parts)-2] + "." + parts[len(parts)-1]
-
 	for _, zone := range zones.Zones {
-		if zone.Name == baseDomain {
+		if zone.Name == domain {
 			return zone.ID, nil
 		}
 	}
@@ -242,14 +287,38 @@ func findRecords(zoneID, fullDomain string) (Record, Record, error) {
 	return recordA, recordAAAA, nil
 }
 
-func updateRecord(zoneID, recordID, name, newIP string) error {
+func createRecord(zoneID, recType, name, newIP string) error {
 	client := &http.Client{}
 	payload := map[string]interface{}{
+		"zone_id": zoneID,
+		"type":    recType,
 		"name":    name,
-		"type":    "A",
 		"value":   newIP,
 		"ttl":     config.TTL,
+	}
+	body, _ := json.Marshal(payload)
+	req, _ := http.NewRequest("POST", fmt.Sprintf("%s/records", hetznerAPI), bytes.NewBuffer(body))
+	req.Header.Add("Auth-API-Token", config.APIToken)
+	req.Header.Add("Content-Type", "application/json")
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("create status: %s", resp.Status)
+	}
+	return nil
+}
+
+func updateRecord(zoneID, recordID, recType, name, newIP string) error {
+	client := &http.Client{}
+	payload := map[string]interface{}{
 		"zone_id": zoneID,
+		"type":    recType,
+		"name":    name,
+		"value":   newIP,
+		"ttl":     config.TTL,
 	}
 	body, _ := json.Marshal(payload)
 	req, _ := http.NewRequest("PUT", fmt.Sprintf("%s/records/%s", hetznerAPI, recordID), bytes.NewBuffer(body))
@@ -262,6 +331,22 @@ func updateRecord(zoneID, recordID, name, newIP string) error {
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
 		return fmt.Errorf("update status: %s", resp.Status)
+	}
+	return nil
+}
+
+func deleteRecord(recordID string) error {
+	client := &http.Client{}
+	req, _ := http.NewRequest("DELETE", fmt.Sprintf("%s/records/%s", hetznerAPI, recordID), nil)
+	req.Header.Add("Auth-API-Token", config.APIToken)
+	req.Header.Add("Content-Type", "application/json")
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("delete status: %s", resp.Status)
 	}
 	return nil
 }
