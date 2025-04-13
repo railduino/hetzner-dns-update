@@ -111,20 +111,58 @@ func main() {
 		//
 		// Handle IPv4
 		//
-		if recordA.Value == ipv4 {
-			if *verboseMode {
-				fmt.Println("A record is current for:", fullDomain)
+		if ipv4 != "" {
+			if recordA.Value != "" {
+				// Case: cur+ / rec+
+				if recordA.Value == ipv4 {
+					if *verboseMode {
+						fmt.Println("- A record is current for:", fullDomain)
+					}
+				} else {
+					if *verboseMode {
+						fmt.Println("- A record needs update for:", fullDomain)
+					}
+					if *updateMode {
+						err = updateRecord(zoneID, recordA.ID, "A", namePart, ipv4)
+						if err != nil {
+							logAndMail("error updating A record: " + err.Error())
+						} else {
+							logAndMail("A record was updated: " + fullDomain)
+						}
+					}
+				}
+			} else {
+				// Case: cur+ / rec-
+				if *verboseMode {
+					fmt.Println("- A record needs create for:", fullDomain)
+				}
+				if *updateMode {
+					err = createRecord(zoneID, "A", namePart, ipv4)
+					if err != nil {
+						logAndMail("error creating A record: " + err.Error())
+					} else {
+						logAndMail("A record was created: " + fullDomain)
+					}
+				}
 			}
 		} else {
-			if *verboseMode {
-				fmt.Println("A record needs update for:", fullDomain)
-			}
-			if *updateMode {
-				err = updateRecord(zoneID, recordA.ID, "A", namePart, ipv4)
-				if err != nil {
-					logAndMail("error updating A record: " + err.Error())
-				} else {
-					logAndMail("A record was updated: " + fullDomain)
+			if recordA.Value != "" {
+				// Case: cur- / rec+
+				if *verboseMode {
+					fmt.Println("- A record needs delete for:", fullDomain)
+				}
+				if *updateMode {
+					err = deleteRecord(recordA.ID)
+					if err != nil {
+						logAndMail("error deleting A record: " + err.Error())
+					} else {
+						logAndMail("A record was deleted: " + fullDomain)
+					}
+				}
+			} else {
+				// Case: cur- / rec-
+				if *verboseMode {
+					fmt.Println("- no need for A record for:", fullDomain)
 				}
 			}
 		}
@@ -137,11 +175,11 @@ func main() {
 				// Case: cur+ / rec+
 				if recordAAAA.Value == ipv6 {
 					if *verboseMode {
-						fmt.Println("AAAA record is current for:", fullDomain)
+						fmt.Println("- AAAA record is current for:", fullDomain)
 					}
 				} else {
 					if *verboseMode {
-						fmt.Println("AAAA record needs update for:", fullDomain)
+						fmt.Println("- AAAA record needs update for:", fullDomain)
 					}
 					if *updateMode {
 						err = updateRecord(zoneID, recordAAAA.ID, "AAAA", namePart, ipv6)
@@ -155,7 +193,7 @@ func main() {
 			} else {
 				// Case: cur+ / rec-
 				if *verboseMode {
-					fmt.Println("AAAA record needs create for:", fullDomain)
+					fmt.Println("- AAAA record needs create for:", fullDomain)
 				}
 				if *updateMode {
 					err = createRecord(zoneID, "AAAA", namePart, ipv6)
@@ -170,7 +208,7 @@ func main() {
 			if recordAAAA.Value != "" {
 				// Case: cur- / rec+
 				if *verboseMode {
-					fmt.Println("AAAA record needs delete for:", fullDomain)
+					fmt.Println("- AAAA record needs delete for:", fullDomain)
 				}
 				if *updateMode {
 					err = deleteRecord(recordAAAA.ID)
@@ -183,7 +221,7 @@ func main() {
 			} else {
 				// Case: cur- / rec-
 				if *verboseMode {
-					fmt.Println("no need for AAAA record for:", fullDomain)
+					fmt.Println("- no need for AAAA record for:", fullDomain)
 				}
 			}
 		}
