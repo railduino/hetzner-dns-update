@@ -127,7 +127,7 @@ func main() {
 						if err != nil {
 							logAndMail("error updating A record: " + err.Error())
 						} else {
-							logAndMail("A record was updated: " + fullDomain)
+							log.Println("A record was updated: " + fullDomain)
 						}
 					}
 				}
@@ -141,7 +141,7 @@ func main() {
 					if err != nil {
 						logAndMail("error creating A record: " + err.Error())
 					} else {
-						logAndMail("A record was created: " + fullDomain)
+						log.Println("A record was created: " + fullDomain)
 					}
 				}
 			}
@@ -156,7 +156,7 @@ func main() {
 					if err != nil {
 						logAndMail("error deleting A record: " + err.Error())
 					} else {
-						logAndMail("A record was deleted: " + fullDomain)
+						log.Println("A record was deleted: " + fullDomain)
 					}
 				}
 			} else {
@@ -186,7 +186,7 @@ func main() {
 						if err != nil {
 							logAndMail("error updating AAAA record: " + err.Error())
 						} else {
-							logAndMail("AAAA record was updated: " + fullDomain)
+							log.Println("AAAA record was updated: " + fullDomain)
 						}
 					}
 				}
@@ -200,7 +200,7 @@ func main() {
 					if err != nil {
 						logAndMail("error creating AAAA record: " + err.Error())
 					} else {
-						logAndMail("AAAA record was created: " + fullDomain)
+						log.Println("AAAA record was created: " + fullDomain)
 					}
 				}
 			}
@@ -215,7 +215,7 @@ func main() {
 					if err != nil {
 						logAndMail("error deleting AAAA record: " + err.Error())
 					} else {
-						logAndMail("AAAA record was deleted: " + fullDomain)
+						log.Println("AAAA record was deleted: " + fullDomain)
 					}
 				}
 			} else {
